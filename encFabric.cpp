@@ -3,32 +3,35 @@
 //------------------------FILE PROVIDER-------------------------
 FileProvider::FileProvider(std::string path) {
     this->_file.open(path,
-                     std::basic_ios::in
-                     |std::basic_ios::out
-                     |std::basic_ios::binary
-                     |std::basic_ios::app);
+                     std::ios::in
+                     |std::ios::out
+                     |std::ios::binary
+                     |std::ios::app);
     this->type = ContentProviderType::File;
 }
 
 long FileProvider::size() {
-    return this->_file.tellg();
+    this->_file.seekg (0, this->_file.end);
+    int length = this->_file.tellg();
+    this->_file.seekg (0, this->_file.beg);
+    return length;
 }
 
 bool FileProvider::isEOF() const {
     return this->_file.eof();
 }
 
-bool FileProvider::read(std::vector<u_char> &out, std::streamsize count = 0) const {
+bool FileProvider::read(std::vector<u_char> &out, std::streamsize count) {
     out.clear();
-    std::fstream &file = this->_file;
-    if (!file.is_open()) return false;
+    if (!this->_file.is_open()) return false;
 
-    if (count == 0) count = file.tellg();
+    if (count == 0) count = this->size();
+
     char *buffer = new char[count];
-    file.read(buffer, count);
-    if (file.bad()) return false;
+    this->_file.read(buffer, count);
+    if (this->_file.bad()) return false;
 
-    std::streamsize amountOfReadBytes = file.gcount();
+    std::streamsize amountOfReadBytes = this->_file.gcount();
     for (std::streamsize i = 0; i < amountOfReadBytes; ++i) {
         out.push_back((u_char)buffer[i]);
     }
@@ -38,11 +41,10 @@ bool FileProvider::read(std::vector<u_char> &out, std::streamsize count = 0) con
     return true;
 }
 
-bool FileProvider::write(std::vector<u_char> &buffer) const {
-    std::fstream &file = this->_file;
-    if (!file.is_open()) return false;
-    file.write(buffer.data(), buffer.size());
-    return !file.bad();
+bool FileProvider::write(std::vector<u_char> &buffer) {
+    if (!this->_file.is_open()) return false;
+    this->_file.write((char*)buffer.data(), buffer.size());
+    return !this->_file.bad();
 }
 
 //------------------------ENCRYPTOR-------------------------
@@ -54,9 +56,11 @@ Encryptor::Encryptor(const EVP_CIPHER *type, ContentProvider *cpIn, ContentProvi
 
 Encryptor::~Encryptor() { delete this->_in; delete this->_out; delete this->_key; delete this->type;}
 
-const ContentProvider* Encryptor::getInCP() {return this->_in;}
-const ContentProvider* Encryptor::getOutCP() {return this->_out;}
-const ContentProvider* Encryptor::getKeyCP() {return this->_key;}
+bool Encryptor::validateKey(ContentProvider *keyToSet) {return true;}
+
+ContentProvider* Encryptor::getInCP() {return this->_in;}
+ContentProvider* Encryptor::getOutCP() {return this->_out;}
+ContentProvider* Encryptor::getKeyCP() {return this->_key;}
 const EVP_CIPHER* Encryptor::getType() {return this->type;}
 
 void Encryptor::setCtx(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
@@ -74,7 +78,7 @@ bool AES256Encryptor::validateKey(ContentProvider *keyToSet) {
     return this->checkLengthOfKey(keyToSet->size());
 }
 
-bool AES256Encryptor::encdec(Encryptor::EncAction action) {
+bool AES256Encryptor::encdec(EncAction action) {
 
     int outlen;
     int readBlockSize = 1024;
@@ -83,14 +87,14 @@ bool AES256Encryptor::encdec(Encryptor::EncAction action) {
     std::vector<u_char> currBlock;
 
     std::vector<u_char> key;
-    if (!this->getKeyCP()->read(key)) return false;
+    if (!this->getKeyCP()->read(key, 32)) return false;
 
     auto inCP = this->getInCP();
     auto outCP = this->getOutCP();
 
     EVP_CIPHER_CTX *ctx;
     ctx = EVP_CIPHER_CTX_new();
-    EVP_CipherInit_ex(&ctx, this->getType(), NULL, key.data(), NULL, static_cast<int>(action));
+    EVP_CipherInit_ex(ctx, this->getType(), NULL, key.data(), NULL, static_cast<int>(action));
 
     for(;;)
     {
@@ -139,12 +143,12 @@ bool DESEncryptor::validateKey(ContentProvider *keyToSet) {
     return this->checkLengthOfKey(keyToSet->size());
 }
 
-bool DESEncryptor::encdec(Encryptor::EncAction action) {
+bool DESEncryptor::encdec(EncAction action) {
 
     auto currAction = action == EncAction::ENCRYPT ? DES_ENCRYPT : DES_DECRYPT;
 
     std::vector<u_char> key;
-    if (!this->getKeyCP()->read(key)) return false;
+    if (!this->getKeyCP()->read(key, 8)) return false;
 
     auto inCP = this->getInCP();
     auto outCP = this->getOutCP();
@@ -192,3 +196,89 @@ bool DESEncryptor::decrypt() {
 }
 
 
+//---------------------------OTP---------------------------
+bool OTPEncryptor::checkLengthOfKey(long length) {
+    return length == this->getInCP()->size();
+}
+
+bool OTPEncryptor::validateKey(ContentProvider *keyToSet) {
+    return this->checkLengthOfKey(keyToSet->size());
+}
+
+bool OTPEncryptor::encdec(EncAction action) {
+
+    auto inCP = this->getInCP();
+    auto outCP = this->getOutCP();
+    auto keyCP = this->getKeyCP();
+
+    int readBlockSize = 1024;
+    std::vector<u_char> currBlock;
+    std::vector<u_char> currKey;
+    std::vector<u_char> currResult;
+
+    for(;;)
+    {
+        currBlock.clear();
+        currKey.clear();
+        currResult.clear();
+
+        if (!inCP->read(currBlock, readBlockSize)) false;
+        if (!keyCP->read(currKey, readBlockSize)) false;
+
+        //we assume that sizes of block and key are equal
+        //because of initial validation of key size
+        for (int i = 0; i < currBlock.size(); ++i)
+            currResult.push_back(currBlock[i]^currKey[i]);
+
+        outCP->write(currResult);
+
+        if (inCP->isEOF()) break;
+    }
+
+    return true;
+}
+
+bool OTPEncryptor::encrypt() {
+    return this->encdec(EncAction::ENCRYPT);
+}
+
+bool OTPEncryptor::decrypt() {
+    return this->encdec(EncAction::DECRYPT);
+}
+
+
+//---------------------------FABRIC-------------------------
+
+ContentProvider* EncryptorFabric::getContentProvider(ContentProviderType type, std::string params) {
+    switch (type){
+        case ContentProviderType::File:
+            FileProvider* fp;
+            fp = new FileProvider(params);
+            return (ContentProvider*)fp;
+    }
+}
+
+Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTypeIn, std::string cpParamsIn,
+                                         ContentProviderType cpTypeOut, std::string cpParamsOut,
+                                         ContentProviderType cpTypeKey, std::string cpParamsKey, bool generateKey) {
+
+    ContentProvider* cpIn = EncryptorFabric::getContentProvider(cpTypeIn, cpParamsIn);
+    ContentProvider* cpOut = EncryptorFabric::getContentProvider(cpTypeOut, cpParamsOut);
+    ContentProvider* cpKey = EncryptorFabric::getContentProvider(cpTypeKey, cpParamsKey);
+
+    Encryptor* encryptor;
+
+    switch (type) {
+        case EncType::AES256:
+            encryptor = new AES256Encryptor(cpIn, cpOut, cpKey);
+            break;
+        case EncType::DES:
+            encryptor = new DESEncryptor(cpIn, cpOut, cpKey);
+            break;
+        case EncType::OTP:
+            encryptor = new OTPEncryptor(cpIn, cpOut, cpKey);
+            break;
+    }
+    
+    return encryptor;
+}
