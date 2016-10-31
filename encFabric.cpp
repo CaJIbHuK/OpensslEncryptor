@@ -2,18 +2,25 @@
 
 //------------------------FILE PROVIDER-------------------------
 FileProvider::FileProvider(std::string path) {
-    this->_file.open(path,
-                     std::ios::in
-                     |std::ios::out
-                     |std::ios::binary
-                     |std::ios::app);
+    this->_file.open(path, std::ios::in
+                           |std::ios::out
+                           |std::ios::binary
+                           |std::ios::app);
     this->type = ContentProviderType::File;
 }
 
-long FileProvider::size() {
-    this->_file.seekg (0, this->_file.end);
-    int length = this->_file.tellg();
-    this->_file.seekg (0, this->_file.beg);
+long FileProvider::size(bool useCachedValue) {
+    if (this->cachedSize && useCachedValue) return this->cachedSize;
+
+    auto currPos = this->_file.tellg();
+    long length = 0;
+    this->_file.seekg(0, this->_file.end);
+
+    length = this->_file.tellg();
+    this->cachedSize = length;
+
+    this->_file.seekg(currPos);
+
     return length;
 }
 
@@ -49,14 +56,22 @@ bool FileProvider::write(std::vector<u_char> &buffer) {
 
 //------------------------ENCRYPTOR-------------------------
 Encryptor::Encryptor(const EVP_CIPHER *type, ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
-    if (!this->validateKey(cpKey)) throw 400;
     this->type = type;
     this->setCtx(cpIn, cpOut, cpKey);
 }
 
 Encryptor::~Encryptor() { delete this->_in; delete this->_out; delete this->_key; delete this->type;}
 
-bool Encryptor::validateKey(ContentProvider *keyToSet) {return true;}
+void Encryptor::processKey(bool generateKey) {
+    auto keyCP = this->getKeyCP();
+    if (generateKey) {
+        std::vector<u_char> key;
+        if (!this->generateKey(key)) throw 500;
+        keyCP->write(key);
+    } else {
+        if (!this->validateKey(keyCP)) throw 400;
+    }
+}
 
 ContentProvider* Encryptor::getInCP() {return this->_in;}
 ContentProvider* Encryptor::getOutCP() {return this->_out;}
@@ -70,12 +85,22 @@ void Encryptor::setCtx(ContentProvider *cpIn, ContentProvider *cpOut, ContentPro
 }
 
 //---------------------------AES256---------------------------
+
+AES256Encryptor::AES256Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+                                 bool generateKey) : Encryptor(EVP_aes_256_ecb(), cpIn, cpOut, cpKey) {
+    this->processKey(generateKey);
+}
+
 bool AES256Encryptor::checkLengthOfKey(long length) {
     return length == 32;
 }
 
 bool AES256Encryptor::validateKey(ContentProvider *keyToSet) {
     return this->checkLengthOfKey(keyToSet->size());
+}
+
+bool AES256Encryptor::generateKey(std::vector<u_char> &key) {
+    return RAND_bytes(key.data(), 32) == 1;
 }
 
 bool AES256Encryptor::encdec(EncAction action) {
@@ -135,12 +160,21 @@ bool AES256Encryptor::decrypt() {
 }
 
 //---------------------------DES---------------------------
+DESEncryptor::DESEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+                                 bool generateKey) : Encryptor(EVP_des_ecb(), cpIn, cpOut, cpKey) {
+    this->processKey(generateKey);
+}
+
 bool DESEncryptor::checkLengthOfKey(long length) {
     return length == 8;
 }
 
 bool DESEncryptor::validateKey(ContentProvider *keyToSet) {
     return this->checkLengthOfKey(keyToSet->size());
+}
+
+bool DESEncryptor::generateKey(std::vector<u_char> &key) {
+    return RAND_bytes(key.data(), 8) == 1;
 }
 
 bool DESEncryptor::encdec(EncAction action) {
@@ -197,12 +231,27 @@ bool DESEncryptor::decrypt() {
 
 
 //---------------------------OTP---------------------------
+OTPEncryptor::OTPEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+                                 bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
+    this->processKey(generateKey);
+}
+
 bool OTPEncryptor::checkLengthOfKey(long length) {
     return length == this->getInCP()->size();
 }
 
 bool OTPEncryptor::validateKey(ContentProvider *keyToSet) {
     return this->checkLengthOfKey(keyToSet->size());
+}
+
+bool OTPEncryptor::generateKey(std::vector<u_char> &key) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<u_char> dist(0, 255);
+    for (long i = 0; i < this->getInCP()->size(); ++i) {
+        key.push_back(dist(gen));
+    }
+    return true;
 }
 
 bool OTPEncryptor::encdec(EncAction action) {
@@ -270,15 +319,16 @@ Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTyp
 
     switch (type) {
         case EncType::AES256:
-            encryptor = new AES256Encryptor(cpIn, cpOut, cpKey);
+            encryptor = new AES256Encryptor(cpIn, cpOut, cpKey, generateKey);
             break;
         case EncType::DES:
-            encryptor = new DESEncryptor(cpIn, cpOut, cpKey);
+            encryptor = new DESEncryptor(cpIn, cpOut, cpKey, generateKey);
             break;
         case EncType::OTP:
-            encryptor = new OTPEncryptor(cpIn, cpOut, cpKey);
+            encryptor = new OTPEncryptor(cpIn, cpOut, cpKey, generateKey);
             break;
     }
-    
+
     return encryptor;
 }
+

@@ -4,9 +4,11 @@
 #include <iostream>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/des.h>
+#include <openssl/rand.h>
 
 enum class EncType {OTP, AES256, DES};
 enum class EncAction {DECRYPT = 0, ENCRYPT = 1};
@@ -16,9 +18,10 @@ enum class ContentProviderType {File};
 class ContentProvider {
 protected:
     ContentProviderType type;
+    long cachedSize;
 public:
     virtual bool isEOF() const = 0;
-    virtual long size() = 0;
+    virtual long size(bool useCachedValue = true) = 0;
     virtual bool write(std::vector<u_char> &buffer) = 0;
     virtual bool read(std::vector<u_char> &out, std::streamsize  count = 0) = 0;
 };
@@ -30,7 +33,7 @@ private:
 public:
     FileProvider(std::string path);
     virtual bool isEOF() const override ;
-    long size() override;
+    long size(bool useCachedValue = true) override;
     bool write(std::vector<u_char> &buffer) override;
     bool read(std::vector<u_char> &out, std::streamsize  count = 0) override;
 };
@@ -41,10 +44,12 @@ private:
     ContentProvider *_in;
     ContentProvider *_out;
     ContentProvider *_key;
-    virtual bool validateKey(ContentProvider *keyToSet);
+    virtual bool validateKey(ContentProvider *keyToSet) = 0;
     virtual bool checkLengthOfKey(long length) = 0;
     virtual bool encdec(EncAction action) = 0;
+    virtual bool generateKey(std::vector<u_char> &key) = 0;
 protected:
+    void processKey(bool generateKey = false);
     ContentProvider* getInCP();
     ContentProvider* getOutCP();
     ContentProvider* getKeyCP();
@@ -62,10 +67,12 @@ private:
     bool validateKey(ContentProvider *keyToSet) override;
     bool checkLengthOfKey(long length) override ;
     bool encdec(EncAction action) override;
+    bool generateKey(std::vector<u_char> &key) override;
 public:
     AES256Encryptor(ContentProvider *cpIn,
-                 ContentProvider *cpOut,
-                 ContentProvider *cpKey):Encryptor(EVP_aes_256_ecb(), cpIn, cpOut, cpKey){};
+                    ContentProvider *cpOut,
+                    ContentProvider *cpKey,
+                    bool generateKey = false);
     bool encrypt();
     bool decrypt();
 };
@@ -75,10 +82,12 @@ private:
     bool validateKey(ContentProvider *keyToSet) override;
     bool checkLengthOfKey(long length) override ;
     bool encdec(EncAction action) override;
+    bool generateKey(std::vector<u_char> &key) override;
 public:
     DESEncryptor(ContentProvider *cpIn,
                  ContentProvider *cpOut,
-                 ContentProvider *cpKey):Encryptor(EVP_des_ecb(), cpIn, cpOut, cpKey){};
+                 ContentProvider *cpKey,
+                 bool generateKey = false);
     bool encrypt();
     bool decrypt();
 };
@@ -88,10 +97,12 @@ private:
     bool validateKey(ContentProvider *keyToSet) override;
     bool checkLengthOfKey(long length) override ;
     bool encdec(EncAction action) override;
+    bool generateKey(std::vector<u_char> &key) override;
 public:
     OTPEncryptor(ContentProvider *cpIn,
                  ContentProvider *cpOut,
-                 ContentProvider *cpKey):Encryptor(NULL, cpIn, cpOut, cpKey){};
+                 ContentProvider *cpKey,
+                 bool generateKey = false);
     bool encrypt();
     bool decrypt();
 };

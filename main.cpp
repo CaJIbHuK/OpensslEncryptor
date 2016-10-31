@@ -2,7 +2,14 @@
 
 
 int main() {
-    FileProvider fp("/home/zas/Programming/CPP/encFabric/aaa");
-    pe();
+    Encryptor* encryptor = EncryptorFabric::getEncryptor(EncType::OTP,
+                                  ContentProviderType::File,
+                                  "/home/zas/Programming/CPP/encFabric/aaa",
+                                  ContentProviderType::File,
+                                  "/home/zas/Programming/CPP/encFabric/ooo",
+                                  ContentProviderType::File,
+                                  "/home/zas/Programming/CPP/encFabric/key",
+                                  true);
+    encryptor->encrypt();
     return 0;
 }
