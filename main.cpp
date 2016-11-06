@@ -2,14 +2,17 @@
 
 
 int main() {
-    Encryptor* encryptor = EncryptorFabric::getEncryptor(EncType::OTP,
-                                  ContentProviderType::File,
+    Encryptor* encryptor = EncryptorFabric::getFileEncryptor(EncType::OTP,
                                   "/home/zas/Programming/CPP/encFabric/aaa",
-                                  ContentProviderType::File,
                                   "/home/zas/Programming/CPP/encFabric/ooo",
-                                  ContentProviderType::File,
                                   "/home/zas/Programming/CPP/encFabric/key",
-                                  true);
+                                    true);
     encryptor->encrypt();
+
+    Encryptor* decryptor = EncryptorFabric::getFileEncryptor(EncType::OTP,
+                                                             "/home/zas/Programming/CPP/encFabric/ooo",
+                                                             "/home/zas/Programming/CPP/encFabric/dec",
+                                                             "/home/zas/Programming/CPP/encFabric/key");
+    decryptor->decrypt();
     return 0;
 }

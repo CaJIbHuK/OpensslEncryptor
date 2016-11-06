@@ -1,12 +1,30 @@
 #include "encFabric.h"
 
 //------------------------FILE PROVIDER-------------------------
-FileProvider::FileProvider(std::string path) {
-    this->_file.open(path, std::ios::in
-                           |std::ios::out
-                           |std::ios::binary
-                           |std::ios::app);
+FileProvider::FileProvider(std::string path, ContentDirection direction) {
+
+    auto inMode = std::ios::in | std::ios::binary;
+    auto outMode = std::ios::out | std::ios::binary | std::ios::trunc;
+    auto inOitMode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
+
+
+    switch (direction) {
+        case ContentDirection::In:
+            this->_file.open(path, inMode);
+            break;
+        case ContentDirection::Out:
+            this->_file.open(path, outMode);
+            break;
+        case ContentDirection::InOut:
+            this->_file.open(path, inOitMode);
+            break;
+    }
+
     this->type = ContentProviderType::File;
+}
+
+void FileProvider::init() {
+    this->_file.seekg(0);
 }
 
 long FileProvider::size(bool useCachedValue) {
@@ -24,7 +42,7 @@ long FileProvider::size(bool useCachedValue) {
     return length;
 }
 
-bool FileProvider::isEOF() const {
+bool FileProvider::isEOData() const {
     return this->_file.eof();
 }
 
@@ -43,7 +61,8 @@ bool FileProvider::read(std::vector<u_char> &out, std::streamsize count) {
         out.push_back((u_char)buffer[i]);
     }
 
-    if (this->isEOF()) this->_file.close();
+    this->_file.peek();
+    if (this->isEOData()) this->_file.close();
 
     return true;
 }
@@ -51,6 +70,7 @@ bool FileProvider::read(std::vector<u_char> &out, std::streamsize count) {
 bool FileProvider::write(std::vector<u_char> &buffer) {
     if (!this->_file.is_open()) return false;
     this->_file.write((char*)buffer.data(), buffer.size());
+    this->_file.flush();
     return !this->_file.bad();
 }
 
@@ -68,9 +88,14 @@ void Encryptor::processKey(bool generateKey) {
         std::vector<u_char> key;
         if (!this->generateKey(key)) throw 500;
         keyCP->write(key);
+        keyCP->init();
     } else {
         if (!this->validateKey(keyCP)) throw 400;
     }
+}
+
+bool Encryptor::validateKey(ContentProvider *keyToSet) {
+    return this->checkLengthOfKey(keyToSet->size(false));
 }
 
 ContentProvider* Encryptor::getInCP() {return this->_in;}
@@ -95,11 +120,8 @@ bool AES256Encryptor::checkLengthOfKey(long length) {
     return length == 32;
 }
 
-bool AES256Encryptor::validateKey(ContentProvider *keyToSet) {
-    return this->checkLengthOfKey(keyToSet->size());
-}
-
 bool AES256Encryptor::generateKey(std::vector<u_char> &key) {
+    key.assign(32, 0);
     return RAND_bytes(key.data(), 32) == 1;
 }
 
@@ -136,7 +158,7 @@ bool AES256Encryptor::encdec(EncAction action) {
         std::vector<u_char> writeBuffer(outbuff, outbuff+outlen);
         outCP->write(writeBuffer);
 
-        if (inCP->isEOF()) break;
+        if (inCP->isEOData()) break;
     }
 
     if(!EVP_CipherFinal_ex(ctx, outbuff, &outlen))
@@ -169,12 +191,32 @@ bool DESEncryptor::checkLengthOfKey(long length) {
     return length == 8;
 }
 
-bool DESEncryptor::validateKey(ContentProvider *keyToSet) {
-    return this->checkLengthOfKey(keyToSet->size());
+bool DESEncryptor::generateKey(std::vector<u_char> &key) {
+    key.assign(8, 0);
+    return RAND_bytes(key.data(), 8) == 1;
 }
 
-bool DESEncryptor::generateKey(std::vector<u_char> &key) {
-    return RAND_bytes(key.data(), 8) == 1;
+void DESEncryptor::addPadding(std::vector<u_char> &block, int blockLength) {
+    auto lengthOfPadding = blockLength - block.size();
+    for (int i = 0; i < lengthOfPadding - 1; ++i) {
+        block.push_back(0);
+    }
+    block.push_back((u_char)lengthOfPadding);
+}
+
+void DESEncryptor::removePadding(std::vector<u_char> &block) {
+    auto lengthOfPadding = (*(block.end()-1));
+    if (lengthOfPadding > 8) return;
+
+    int i = 1;
+    auto paddingIt = block.end()-2;
+    for (; i < lengthOfPadding; paddingIt--, i++) {
+        if ((*paddingIt) != 0) break;
+    }
+
+    if (i == lengthOfPadding) {
+        block.erase(paddingIt+1, block.end());
+    }
 }
 
 bool DESEncryptor::encdec(EncAction action) {
@@ -205,17 +247,21 @@ bool DESEncryptor::encdec(EncAction action) {
 
         if (!inCP->read(currBlock,readBlockSize)) false;
 
-        if (currBlock.size() < readBlockSize) {
-            for (int i = 0; i < readBlockSize - currBlock.size(); ++i) {
-                currBlock.push_back(0);
-            }
+        if (action == EncAction::ENCRYPT && currBlock.size() < readBlockSize) {
+            this->addPadding(currBlock, readBlockSize);
         }
-        DES_ecb_encrypt((DES_cblock*)currBlock.data(), (DES_cblock*)outbuff,  &schedule, currAction);
 
-        std::vector<u_char> writeBuffer(outbuff, outbuff+readBlockSize);
+        DES_ecb_encrypt((DES_cblock *) currBlock.data(), (DES_cblock *) outbuff, &schedule, currAction);
+
+        std::vector<u_char> writeBuffer(outbuff, outbuff + readBlockSize);
+
+        if (action == EncAction::DECRYPT && inCP->isEOData()) {
+            this->removePadding(writeBuffer);
+        }
+
         outCP->write(writeBuffer);
 
-        if (inCP->isEOF()) break;
+        if (inCP->isEOData()) break;
     }
 
     return true;
@@ -238,10 +284,6 @@ OTPEncryptor::OTPEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, Conten
 
 bool OTPEncryptor::checkLengthOfKey(long length) {
     return length == this->getInCP()->size();
-}
-
-bool OTPEncryptor::validateKey(ContentProvider *keyToSet) {
-    return this->checkLengthOfKey(keyToSet->size());
 }
 
 bool OTPEncryptor::generateKey(std::vector<u_char> &key) {
@@ -281,7 +323,7 @@ bool OTPEncryptor::encdec(EncAction action) {
 
         outCP->write(currResult);
 
-        if (inCP->isEOF()) break;
+        if (inCP->isEOData()) break;
     }
 
     return true;
@@ -298,11 +340,11 @@ bool OTPEncryptor::decrypt() {
 
 //---------------------------FABRIC-------------------------
 
-ContentProvider* EncryptorFabric::getContentProvider(ContentProviderType type, std::string params) {
+ContentProvider* EncryptorFabric::getContentProvider(ContentProviderType type, std::string params, ContentDirection direction) {
     switch (type){
         case ContentProviderType::File:
             FileProvider* fp;
-            fp = new FileProvider(params);
+            fp = new FileProvider(params, direction);
             return (ContentProvider*)fp;
     }
 }
@@ -311,9 +353,9 @@ Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTyp
                                          ContentProviderType cpTypeOut, std::string cpParamsOut,
                                          ContentProviderType cpTypeKey, std::string cpParamsKey, bool generateKey) {
 
-    ContentProvider* cpIn = EncryptorFabric::getContentProvider(cpTypeIn, cpParamsIn);
-    ContentProvider* cpOut = EncryptorFabric::getContentProvider(cpTypeOut, cpParamsOut);
-    ContentProvider* cpKey = EncryptorFabric::getContentProvider(cpTypeKey, cpParamsKey);
+    ContentProvider* cpIn = EncryptorFabric::getContentProvider(cpTypeIn, cpParamsIn, ContentDirection::In);
+    ContentProvider* cpOut = EncryptorFabric::getContentProvider(cpTypeOut, cpParamsOut, ContentDirection::Out);
+    ContentProvider* cpKey = EncryptorFabric::getContentProvider(cpTypeKey, cpParamsKey, generateKey ? ContentDirection::InOut : ContentDirection::In);
 
     Encryptor* encryptor;
 
@@ -332,3 +374,11 @@ Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTyp
     return encryptor;
 }
 
+Encryptor* EncryptorFabric::getFileEncryptor(EncType type, std::string pathIn, std::string pathOut,
+                                             std::string pathKey, bool generateKey) {
+    return EncryptorFabric::getEncryptor(type,
+                                         ContentProviderType::File, pathIn,
+                                         ContentProviderType::File, pathOut,
+                                         ContentProviderType::File, pathKey,
+                                         generateKey);
+}
