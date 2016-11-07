@@ -1,4 +1,4 @@
-#include "encFabric.h"
+#include "DerivedEncryptor.h"
 
 //------------------------FILE PROVIDER-------------------------
 FileProvider::FileProvider(std::string path, ContentDirection direction) {
@@ -74,40 +74,6 @@ bool FileProvider::write(std::vector<u_char> &buffer) {
     return !this->_file.bad();
 }
 
-//------------------------ENCRYPTOR-------------------------
-Encryptor::Encryptor(const EVP_CIPHER *type, ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
-    this->type = type;
-    this->setCtx(cpIn, cpOut, cpKey);
-}
-
-Encryptor::~Encryptor() { delete this->_in; delete this->_out; delete this->_key; delete this->type;}
-
-void Encryptor::processKey(bool generateKey) {
-    auto keyCP = this->getKeyCP();
-    if (generateKey) {
-        std::vector<u_char> key;
-        if (!this->generateKey(key)) throw 500;
-        keyCP->write(key);
-        keyCP->init();
-    } else {
-        if (!this->validateKey(keyCP)) throw 400;
-    }
-}
-
-bool Encryptor::validateKey(ContentProvider *keyToSet) {
-    return this->checkLengthOfKey(keyToSet->size(false));
-}
-
-ContentProvider* Encryptor::getInCP() {return this->_in;}
-ContentProvider* Encryptor::getOutCP() {return this->_out;}
-ContentProvider* Encryptor::getKeyCP() {return this->_key;}
-const EVP_CIPHER* Encryptor::getType() {return this->type;}
-
-void Encryptor::setCtx(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
-    if (cpIn != NULL) this->_in = cpIn;
-    if (cpOut != NULL) this->_out = cpOut;
-    if (cpKey != NULL) this->_key = cpKey;
-}
 
 //---------------------------AES256---------------------------
 
@@ -183,7 +149,7 @@ bool AES256Encryptor::decrypt() {
 
 //---------------------------DES---------------------------
 DESEncryptor::DESEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                                 bool generateKey) : Encryptor(EVP_des_ecb(), cpIn, cpOut, cpKey) {
+                           bool generateKey) : Encryptor(EVP_des_ecb(),cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
 
@@ -275,10 +241,9 @@ bool DESEncryptor::decrypt() {
     return this->encdec(EncAction::DECRYPT);
 }
 
-
 //---------------------------OTP---------------------------
 OTPEncryptor::OTPEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                                 bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
+                           bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
 
@@ -335,50 +300,4 @@ bool OTPEncryptor::encrypt() {
 
 bool OTPEncryptor::decrypt() {
     return this->encdec(EncAction::DECRYPT);
-}
-
-
-//---------------------------FABRIC-------------------------
-
-ContentProvider* EncryptorFabric::getContentProvider(ContentProviderType type, std::string params, ContentDirection direction) {
-    switch (type){
-        case ContentProviderType::File:
-            FileProvider* fp;
-            fp = new FileProvider(params, direction);
-            return (ContentProvider*)fp;
-    }
-}
-
-Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTypeIn, std::string cpParamsIn,
-                                         ContentProviderType cpTypeOut, std::string cpParamsOut,
-                                         ContentProviderType cpTypeKey, std::string cpParamsKey, bool generateKey) {
-
-    ContentProvider* cpIn = EncryptorFabric::getContentProvider(cpTypeIn, cpParamsIn, ContentDirection::In);
-    ContentProvider* cpOut = EncryptorFabric::getContentProvider(cpTypeOut, cpParamsOut, ContentDirection::Out);
-    ContentProvider* cpKey = EncryptorFabric::getContentProvider(cpTypeKey, cpParamsKey, generateKey ? ContentDirection::InOut : ContentDirection::In);
-
-    Encryptor* encryptor;
-
-    switch (type) {
-        case EncType::AES256:
-            encryptor = new AES256Encryptor(cpIn, cpOut, cpKey, generateKey);
-            break;
-        case EncType::DES:
-            encryptor = new DESEncryptor(cpIn, cpOut, cpKey, generateKey);
-            break;
-        case EncType::OTP:
-            encryptor = new OTPEncryptor(cpIn, cpOut, cpKey, generateKey);
-            break;
-    }
-
-    return encryptor;
-}
-
-Encryptor* EncryptorFabric::getFileEncryptor(EncType type, std::string pathIn, std::string pathOut,
-                                             std::string pathKey, bool generateKey) {
-    return EncryptorFabric::getEncryptor(type,
-                                         ContentProviderType::File, pathIn,
-                                         ContentProviderType::File, pathOut,
-                                         ContentProviderType::File, pathKey,
-                                         generateKey);
 }

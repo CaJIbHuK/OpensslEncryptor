@@ -2,10 +2,15 @@
 <module type="CPP_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/encFabric.h" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/main.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/CMakeLists.txt" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/encFabric.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/encLib.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/DerivedEncryptor.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/BaseEncryptor.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/BaseEncryptor.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/DerivedEncryptor.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/Fabric.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/Fabric.h" isTestSource="false" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module-library">
