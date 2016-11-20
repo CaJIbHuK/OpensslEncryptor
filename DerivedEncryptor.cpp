@@ -5,7 +5,7 @@ FileProvider::FileProvider(std::string path, ContentDirection direction) {
 
     auto inMode = std::ios::in | std::ios::binary;
     auto outMode = std::ios::out | std::ios::binary | std::ios::trunc;
-    auto inOitMode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
+    auto inOutMode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
 
 
     switch (direction) {
@@ -16,7 +16,7 @@ FileProvider::FileProvider(std::string path, ContentDirection direction) {
             this->_file.open(path, outMode);
             break;
         case ContentDirection::InOut:
-            this->_file.open(path, inOitMode);
+            this->_file.open(path, inOutMode);
             break;
     }
 
@@ -164,7 +164,7 @@ bool DESEncryptor::generateKey(std::vector<u_char> &key) {
 
 void DESEncryptor::addPadding(std::vector<u_char> &block, int blockLength) {
     auto lengthOfPadding = blockLength - block.size();
-    for (int i = 0; i < lengthOfPadding - 1; ++i) {
+    for (int i = 0; i < lengthOfPadding+7; ++i) {
         block.push_back(0);
     }
     block.push_back((u_char)lengthOfPadding);
@@ -196,6 +196,7 @@ bool DESEncryptor::encdec(EncAction action) {
     auto outCP = this->getOutCP();
 
     int readBlockSize = 8;
+    int paddingLength = -1;
     unsigned char outbuff[readBlockSize];
     std::vector<u_char> currBlock;
 
@@ -213,8 +214,9 @@ bool DESEncryptor::encdec(EncAction action) {
 
         if (!inCP->read(currBlock,readBlockSize)) false;
 
-        if (action == EncAction::ENCRYPT && currBlock.size() < readBlockSize) {
-            this->addPadding(currBlock, readBlockSize);
+        if (action == EncAction::ENCRYPT && inCP->isEOData()) {
+            paddingLength = readBlockSize - currBlock.size();
+            if (paddingLength) this->addPadding(currBlock, readBlockSize);
         }
 
         DES_ecb_encrypt((DES_cblock *) currBlock.data(), (DES_cblock *) outbuff, &schedule, currAction);
@@ -228,6 +230,15 @@ bool DESEncryptor::encdec(EncAction action) {
         outCP->write(writeBuffer);
 
         if (inCP->isEOData()) break;
+    }
+
+    if (action == EncAction::ENCRYPT && paddingLength == 0) {
+        currBlock.clear();
+        currBlock.assign(7,0);
+        currBlock.push_back(8);
+        DES_ecb_encrypt((DES_cblock *) currBlock.data(), (DES_cblock *) outbuff, &schedule, currAction);
+        std::vector<u_char> writeBuffer(outbuff, outbuff + readBlockSize);
+        outCP->write(writeBuffer);
     }
 
     return true;
@@ -299,5 +310,81 @@ bool OTPEncryptor::encrypt() {
 }
 
 bool OTPEncryptor::decrypt() {
+    return this->encdec(EncAction::DECRYPT);
+}
+
+//---------------------------RC4---------------------------
+RC4Encryptor::RC4KeyGenerator::RC4KeyGenerator(std::vector<u_char> &key) {
+    for (u_char i = 0; i < std::numeric_limits<u_char>::max(); ++i) {
+        s.push_back(i);
+    }
+    u_char j = 0;
+    for (u_char i = 0; i < std::numeric_limits<u_char>::max(); ++i) {
+        j = (j + this->s[i] + key[i % key.size()]) + s[i];
+        std::swap(s[i], s[j]);
+    }
+}
+
+ const u_char* RC4Encryptor::RC4KeyGenerator::next() {
+    this->x++;
+    this->y+=s[x];
+    std::swap(s[x],s[y]);
+    return &s[s[x] + s[y]];
+}
+
+
+ RC4Encryptor::RC4Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+                           bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
+    this->processKey(generateKey);
+
+    std::vector<u_char> key;
+    this->getKeyCP()->read(key);
+    this->keyGen = new RC4KeyGenerator(key);
+}
+
+ bool RC4Encryptor::checkLengthOfKey(long length) {
+    return true;
+}
+
+//u_charODO key length depending on type variable
+ bool RC4Encryptor::generateKey(std::vector<u_char> &key) {
+    key.assign(sizeof(u_char), 0);
+    return RAND_bytes(key.data(), 8) == 1;
+}
+
+ bool RC4Encryptor::encdec(EncAction action) {
+
+    auto inCP = this->getInCP();
+    auto outCP = this->getOutCP();
+
+    int readBlockSize = sizeof(u_char);
+    const u_char *currKey;
+    std::vector<u_char> currBlock;
+    std::vector<u_char> currResult;
+
+    for(;;)
+    {
+        currKey = this->keyGen->next();
+        currBlock.clear();
+        currResult.clear();
+
+        if (!inCP->read(currBlock, readBlockSize)) false;
+
+        for (int i = 0; i < currBlock.size(); ++i)
+            currResult.push_back(currBlock[i]^currKey[i]);
+
+        outCP->write(currResult);
+
+        if (inCP->isEOData()) break;
+    }
+
+    return true;
+}
+
+ bool RC4Encryptor::encrypt() {
+    return this->encdec(EncAction::ENCRYPT);
+}
+
+ bool RC4Encryptor::decrypt() {
     return this->encdec(EncAction::DECRYPT);
 }

@@ -29,11 +29,11 @@ Encryptor* EncryptorFabric::getEncryptor(EncType type, ContentProviderType cpTyp
         case EncType::DES:
             encryptor = new DESEncryptor(cpIn, cpOut, cpKey, generateKey);
             break;
-        case EncType::DDES:
-            encryptor = new DoubleDESEncryptor(cpIn, cpOut, cpKey, generateKey);
-            break;
         case EncType::OTP:
             encryptor = new OTPEncryptor(cpIn, cpOut, cpKey, generateKey);
+            break;
+        case EncType::RC4:
+            encryptor = new RC4Encryptor(cpIn, cpOut, cpKey, generateKey);
             break;
     }
 

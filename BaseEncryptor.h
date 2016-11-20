@@ -4,12 +4,13 @@
 #include <iostream>
 #include <fstream>
 #include <random>
+#include <limits>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/des.h>
 #include <openssl/rand.h>
 
-enum class EncType {OTP, AES256, DES, DDES};
+enum class EncType {OTP, AES256, DES, RC4};
 enum class EncAction {DECRYPT = 0, ENCRYPT = 1};
 enum class ContentProviderType {File};
 enum class ContentDirection {In, Out, InOut};

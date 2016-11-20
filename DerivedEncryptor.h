@@ -43,24 +43,6 @@ public:
     bool decrypt() override;
 };
 
-class DoubleDESEncryptor:public Encryptor{
-private:
-    DESEncryptor* des1;
-    DESEncryptor* des2;
-    bool checkLengthOfKey(long length) override;
-    bool generateKey(std::vector<u_char> &key) override;
-    void addPadding(std::vector<u_char> &block, int blockLength);
-    void removePadding(std::vector<u_char> &block);
-protected:
-    bool encdec(EncAction action) override;
-public:
-    DoubleDESEncryptor(ContentProvider *cpIn,
-                       ContentProvider *cpOut,
-                       ContentProvider *cpKey,
-                       bool generateKey);
-    virtual bool encrypt() override;
-    virtual bool decrypt() override;
-};
 
 class OTPEncryptor:public Encryptor{
 private:
@@ -75,4 +57,30 @@ public:
     bool encrypt();
     bool decrypt();
 };
+
+class RC4Encryptor:public Encryptor{
+private:
+    class RC4KeyGenerator{
+    private:
+        std::vector<u_char> s;
+        u_char x = 0;
+        u_char y = 0;
+    public:
+        RC4KeyGenerator(std::vector<u_char> &key);
+        const u_char* next();
+    };
+
+    RC4KeyGenerator *keyGen;
+    bool checkLengthOfKey(long length) override ;
+    bool encdec(EncAction action) override;
+    bool generateKey(std::vector<u_char> &key) override;
+public:
+    RC4Encryptor(ContentProvider *cpIn,
+                 ContentProvider *cpOut,
+                 ContentProvider *cpKey,
+                 bool generateKey);
+    bool encrypt();
+    bool decrypt();
+};
+
 
