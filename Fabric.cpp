@@ -1,4 +1,5 @@
 #include "Fabric.h"
+#include "DerivedEncryptor.h"
 
 
 //---------------------------FABRIC-------------------------

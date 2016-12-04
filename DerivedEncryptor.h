@@ -1,4 +1,21 @@
+#ifndef BASE_H
+#define BASE_H
+
 #include "BaseEncryptor.h"
+
+#endif
+
+#include <vector>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <algorithm>
+#include <random>
+#include <limits>
+#include <openssl/evp.h>
+#include <openssl/aes.h>
+#include <openssl/des.h>
+#include <openssl/rand.h>
 
 class FileProvider:ContentProvider{
 private:
@@ -9,7 +26,7 @@ public:
     virtual bool isEOData() const override ;
     long size(bool useCachedValue = true) override;
     bool write(std::vector<u_char> &buffer) override;
-    bool read(std::vector<u_char> &out, std::streamsize  count = 0) override;
+    bool read(std::vector<u_char> &out, long  count = 0) override;
 };
 
 class AES256Encryptor:public Encryptor{

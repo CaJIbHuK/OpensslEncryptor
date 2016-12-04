@@ -46,7 +46,7 @@ bool FileProvider::isEOData() const {
     return this->_file.eof();
 }
 
-bool FileProvider::read(std::vector<u_char> &out, std::streamsize count) {
+bool FileProvider::read(std::vector<u_char> &out, long count) {
     out.clear();
     if (!this->_file.is_open()) return false;
 
@@ -78,7 +78,7 @@ bool FileProvider::write(std::vector<u_char> &buffer) {
 //---------------------------AES256---------------------------
 
 AES256Encryptor::AES256Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                                 bool generateKey) : Encryptor(EVP_aes_256_ecb(), cpIn, cpOut, cpKey) {
+                                 bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
 
@@ -107,7 +107,7 @@ bool AES256Encryptor::encdec(EncAction action) {
 
     EVP_CIPHER_CTX *ctx;
     ctx = EVP_CIPHER_CTX_new();
-    EVP_CipherInit_ex(ctx, this->getType(), NULL, key.data(), NULL, static_cast<int>(action));
+    EVP_CipherInit_ex(ctx, EVP_aes_256_ecb(), NULL, key.data(), NULL, static_cast<int>(action));
 
     for(;;)
     {
@@ -149,7 +149,7 @@ bool AES256Encryptor::decrypt() {
 
 //---------------------------DES---------------------------
 DESEncryptor::DESEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                           bool generateKey) : Encryptor(EVP_des_ecb(),cpIn, cpOut, cpKey) {
+                           bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
 
@@ -254,7 +254,7 @@ bool DESEncryptor::decrypt() {
 
 //---------------------------OTP---------------------------
 OTPEncryptor::OTPEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                           bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
+                           bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
 
@@ -334,7 +334,7 @@ RC4Encryptor::RC4KeyGenerator::RC4KeyGenerator(std::vector<u_char> &key) {
 
 
  RC4Encryptor::RC4Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
-                           bool generateKey) : Encryptor(NULL, cpIn, cpOut, cpKey) {
+                           bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 
     std::vector<u_char> key;

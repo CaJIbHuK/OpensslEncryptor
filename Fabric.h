@@ -1,4 +1,9 @@
-#include "DerivedEncryptor.h"
+#ifndef BASE_H
+#define BASE_H
+
+#include "BaseEncryptor.h"
+
+#endif
 
 class EncryptorFabric {
 public:
