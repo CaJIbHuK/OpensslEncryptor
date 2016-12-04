@@ -329,7 +329,7 @@ RC4Encryptor::RC4KeyGenerator::RC4KeyGenerator(std::vector<u_char> &key) {
     this->x++;
     this->y+=s[x];
     std::swap(s[x],s[y]);
-    return &s[s[x] + s[y]];
+    return &s[(s[x] + s[y])%std::numeric_limits<u_char>::max()];
 }
 
 
@@ -346,10 +346,10 @@ RC4Encryptor::RC4KeyGenerator::RC4KeyGenerator(std::vector<u_char> &key) {
     return true;
 }
 
-//u_charODO key length depending on type variable
+
  bool RC4Encryptor::generateKey(std::vector<u_char> &key) {
-    key.assign(sizeof(u_char), 0);
-    return RAND_bytes(key.data(), 8) == 1;
+    key.assign(256, 0);
+    return RAND_bytes(key.data(), 256) == 1;
 }
 
  bool RC4Encryptor::encdec(EncAction action) {
