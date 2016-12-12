@@ -74,10 +74,62 @@ bool FileProvider::write(std::vector<u_char> &buffer) {
     return !this->_file.bad();
 }
 
+//------------------------MEMORY PROVIDER-------------------------
+MemoryProvider::MemoryProvider(std::vector<u_char> &initData) {
+    this->memory.assign(initData.begin(), initData.end());
+    this->type = ContentProviderType::Memory;
+}
+
+MemoryProvider::MemoryProvider() {
+    this->type = ContentProviderType::Memory;
+}
+
+void MemoryProvider::init() {
+    this->currIndex = 0;
+    this->end = false;
+}
+
+long MemoryProvider::size(bool useCachedValue) {
+    if (this->cachedSize && useCachedValue) return this->cachedSize;
+
+    long length = this->memory.size();
+    this->cachedSize = length;
+
+    return length;
+}
+
+bool MemoryProvider::isEOData() const {
+    return this->currIndex == this->memory.size();
+}
+
+bool MemoryProvider::read(std::vector<u_char> &out, long count) {
+    out.clear();
+    auto size = this->size();
+
+    auto bytesToRead = (count == 0 || count + this->currIndex > size) ? size : this->currIndex + count;
+
+    for (; this->currIndex < bytesToRead; this->currIndex++) {
+        out.push_back(this->memory[this->currIndex]);
+    }
+
+    if (this->currIndex == size) this->end = true;
+
+    return true;
+}
+
+bool MemoryProvider::write(std::vector<u_char> &buffer) {
+    for(auto it = buffer.begin(); it < buffer.end(); it++)
+        this->memory.push_back((*it));
+
+    this->cachedSize = this->memory.size();
+
+    return true;
+}
+
 
 //---------------------------AES256---------------------------
 
-AES256Encryptor::AES256Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+AES256Encryptor::AES256Encryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey,
                                  bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
@@ -148,7 +200,7 @@ bool AES256Encryptor::decrypt() {
 }
 
 //---------------------------DES---------------------------
-DESEncryptor::DESEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+DESEncryptor::DESEncryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey,
                            bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
@@ -251,9 +303,83 @@ bool DESEncryptor::encrypt() {
 bool DESEncryptor::decrypt() {
     return this->encdec(EncAction::DECRYPT);
 }
+//---------------------------DDES---------------------------
+DDESEncryptor::DDESEncryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey,
+                           bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
+    this->processKey(generateKey);
+}
+
+bool DDESEncryptor::checkLengthOfKey(long length) {
+    return length == 16;
+}
+
+bool DDESEncryptor::generateKey(std::vector<u_char> &key) {
+    key.assign(16, 0);
+    return RAND_bytes(key.data(), 16) == 1;
+}
+
+void DDESEncryptor::addPadding(std::vector<u_char> &block, int blockLength) {
+    auto lengthOfPadding = blockLength - block.size();
+    for (int i = 0; i < lengthOfPadding+7; ++i) {
+        block.push_back(0);
+    }
+    block.push_back((u_char)lengthOfPadding);
+}
+
+void DDESEncryptor::removePadding(std::vector<u_char> &block) {
+    auto lengthOfPadding = (*(block.end()-1));
+    if (lengthOfPadding > 8) return;
+
+    int i = 1;
+    auto paddingIt = block.end()-2;
+    for (; i < lengthOfPadding; paddingIt--, i++) {
+        if ((*paddingIt) != 0) break;
+    }
+
+    if (i == lengthOfPadding) {
+        block.erase(paddingIt+1, block.end());
+    }
+}
+
+bool DDESEncryptor::encdec(EncAction action) {
+
+    std::vector<u_char> key1;
+    std::vector<u_char> key2;
+    if (!this->getKeyCP()->read(key1, 8)) return false;
+    if (!this->getKeyCP()->read(key2, 8)) return false;
+
+    std::shared_ptr<ContentProvider> desKey1 = std::make_shared<MemoryProvider>(key1);
+    std::shared_ptr<ContentProvider> desKey2 = std::make_shared<MemoryProvider>(key2);
+
+    auto inCP = this->getInCP();
+    auto outCP = this->getOutCP();
+    std::shared_ptr<ContentProvider> intermediateResult = std::make_shared<MemoryProvider>();
+
+    if (action == EncAction::ENCRYPT){
+        DESEncryptor des1(inCP, intermediateResult, desKey1, false);
+        des1.encrypt();
+        DESEncryptor des2(intermediateResult, outCP, desKey2, false);
+        des2.encrypt();
+    } else {
+        DESEncryptor des1(inCP, intermediateResult, desKey2, false);
+        des1.decrypt();
+        DESEncryptor des2(intermediateResult, outCP, desKey1, false);
+        des2.decrypt();
+    }
+
+    return true;
+}
+
+bool DDESEncryptor::encrypt() {
+    return this->encdec(EncAction::ENCRYPT);
+}
+
+bool DDESEncryptor::decrypt() {
+    return this->encdec(EncAction::DECRYPT);
+}
 
 //---------------------------OTP---------------------------
-OTPEncryptor::OTPEncryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+OTPEncryptor::OTPEncryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey,
                            bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 }
@@ -333,7 +459,7 @@ RC4Encryptor::RC4KeyGenerator::RC4KeyGenerator(std::vector<u_char> &key) {
 }
 
 
- RC4Encryptor::RC4Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey,
+ RC4Encryptor::RC4Encryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey,
                            bool generateKey) : Encryptor(cpIn, cpOut, cpKey) {
     this->processKey(generateKey);
 

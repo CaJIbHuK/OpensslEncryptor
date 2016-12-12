@@ -7,7 +7,7 @@
 
 class EncryptorFabric {
 public:
-    static Encryptor* getEncryptor(EncType type,
+    static std::shared_ptr<Encryptor> getEncryptor(EncType type,
                                    ContentProviderType cpTypeIn,
                                    std::string cpParamsIn,
                                    ContentProviderType cpTypeOut,
@@ -15,8 +15,8 @@ public:
                                    ContentProviderType cpTypeKey,
                                    std::string cpParamsKey,
                                    bool generateKey = false);
-    static ContentProvider* getContentProvider(ContentProviderType type, std::string params, ContentDirection direction);
-    static Encryptor* getFileEncryptor(EncType type,
+    static std::shared_ptr<ContentProvider> getContentProvider(ContentProviderType type, ContentDirection direction, std::string params);
+    static std::shared_ptr<Encryptor> getFileEncryptor(EncType type,
                                        std::string pathIn,
                                        std::string pathOut,
                                        std::string pathKey, bool generateKey = false);

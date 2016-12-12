@@ -1,10 +1,10 @@
 #include "BaseEncryptor.h"
 
-Encryptor::Encryptor(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
+Encryptor::Encryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey) {
     this->setCtx(cpIn, cpOut, cpKey);
 }
 
-Encryptor::~Encryptor() { delete this->_in; delete this->_out; delete this->_key;}
+Encryptor::~Encryptor() { }
 
 void Encryptor::processKey(bool generateKey) {
     auto keyCP = this->getKeyCP();
@@ -18,15 +18,15 @@ void Encryptor::processKey(bool generateKey) {
     }
 }
 
-bool Encryptor::validateKey(ContentProvider *keyToSet) {
+bool Encryptor::validateKey(std::shared_ptr<ContentProvider> keyToSet) {
     return this->checkLengthOfKey(keyToSet->size(false));
 }
 
-ContentProvider* Encryptor::getInCP() {return this->_in;}
-ContentProvider* Encryptor::getOutCP() {return this->_out;}
-ContentProvider* Encryptor::getKeyCP() {return this->_key;}
+std::shared_ptr<ContentProvider> Encryptor::getInCP() {return this->_in;}
+std::shared_ptr<ContentProvider> Encryptor::getOutCP() {return this->_out;}
+std::shared_ptr<ContentProvider> Encryptor::getKeyCP() {return this->_key;}
 
-void Encryptor::setCtx(ContentProvider *cpIn, ContentProvider *cpOut, ContentProvider *cpKey) {
+void Encryptor::setCtx(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey) {
     if (cpIn != NULL) this->_in = cpIn;
     if (cpOut != NULL) this->_out = cpOut;
     if (cpKey != NULL) this->_key = cpKey;
