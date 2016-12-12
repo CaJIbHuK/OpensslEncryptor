@@ -15,7 +15,7 @@ enum class ContentDirection {In, Out, InOut};
 class ContentProvider {
 protected:
     ContentProviderType type;
-    long cachedSize;
+    long cachedSize = 0;
 public:
     virtual ~ContentProvider(){};
     virtual void init() = 0;

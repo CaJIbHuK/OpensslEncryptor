@@ -24,6 +24,7 @@ FileProvider::FileProvider(std::string path, ContentDirection direction) {
 }
 
 void FileProvider::init() {
+    this->cachedSize = 0;
     this->_file.seekg(0);
 }
 
@@ -385,7 +386,7 @@ OTPEncryptor::OTPEncryptor(std::shared_ptr<ContentProvider> cpIn, std::shared_pt
 }
 
 bool OTPEncryptor::checkLengthOfKey(long length) {
-    return length == this->getInCP()->size();
+    return length >= this->getInCP()->size();
 }
 
 bool OTPEncryptor::generateKey(std::vector<u_char> &key) {

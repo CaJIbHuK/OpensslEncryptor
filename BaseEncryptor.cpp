@@ -27,7 +27,10 @@ std::shared_ptr<ContentProvider> Encryptor::getOutCP() {return this->_out;}
 std::shared_ptr<ContentProvider> Encryptor::getKeyCP() {return this->_key;}
 
 void Encryptor::setCtx(std::shared_ptr<ContentProvider> cpIn, std::shared_ptr<ContentProvider> cpOut, std::shared_ptr<ContentProvider> cpKey) {
-    if (cpIn != NULL) this->_in = cpIn;
-    if (cpOut != NULL) this->_out = cpOut;
-    if (cpKey != NULL) this->_key = cpKey;
+    this->_in = cpIn;
+    this->_out = cpOut;
+    this->_key = cpKey;
+    this->_in->init();
+    this->_out->init();
+    this->_key->init();
 }
