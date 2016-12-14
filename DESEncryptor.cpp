@@ -68,7 +68,7 @@ bool DESEncryptor::encdec(EncAction action) {
     {
         currBlock.clear();
 
-        if (!inCP->read(currBlock,readBlockSize)) false;
+        if (!inCP->read(currBlock,readBlockSize)) return false;
 
         if (action == EncAction::ENCRYPT && inCP->isEOData()) {
             paddingLength = readBlockSize - currBlock.size();

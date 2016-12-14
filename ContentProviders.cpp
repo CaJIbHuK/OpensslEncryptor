@@ -26,7 +26,8 @@ FileProvider::FileProvider(std::string path, ContentDirection direction) {
 
 void FileProvider::init() {
     this->cachedSize = 0;
-    this->_file.seekg(0);
+    this->_file.clear();
+    this->_file.seekg(0, std::ios::beg);
 }
 
 long FileProvider::size(bool useCachedValue) {
@@ -64,7 +65,6 @@ bool FileProvider::read(std::vector<u_char> &out, long count) {
     }
 
     this->_file.peek();
-    if (this->isEOData()) this->_file.close();
 
     return true;
 }

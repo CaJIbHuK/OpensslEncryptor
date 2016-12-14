@@ -11,6 +11,9 @@ std::shared_ptr<ContentProvider> EncryptorFabric::getFileContentProvider(Content
 std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider(std::vector<u_char> &initData) {
     return std::make_shared<MemoryProvider>(initData);
 }
+std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider() {
+    return std::make_shared<MemoryProvider>();
+}
 
 std::shared_ptr<Encryptor> EncryptorFabric::getEncryptor(EncType type,
                                                          std::shared_ptr<ContentProvider> cpIn,
