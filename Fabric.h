@@ -1,9 +1,7 @@
-#ifndef BASE_H
-#define BASE_H
+#ifndef FABRIC
+#define FABRIC
 
 #include "BaseEncryptor.h"
-
-#endif
 
 class EncryptorFabric {
 public:
@@ -13,15 +11,8 @@ public:
                                                    std::shared_ptr<ContentProvider> cpKey,
                                                    bool generateKey = false);
 
-    static std::shared_ptr<ContentProvider> getContentProvider(ContentProviderType type, ContentDirection direction, std::string params);
-
-    static std::shared_ptr<Encryptor> getFileEncryptor(EncType type,
-                                                       std::string pathIn,
-                                                       std::string pathOut,
-                                                       std::string pathKey, bool generateKey = false);
-
-    static std::shared_ptr<Encryptor> getMemoryEncryptor(EncType type,
-                                                         std::vector<u_char> &dataIn,
-                                                         std::vector<u_char> &key,
-                                                         bool generateKey);
+    static std::shared_ptr<ContentProvider> getFileContentProvider(ContentDirection direction, std::string params);
+    static std::shared_ptr<ContentProvider> getMemoryContentProvider(std::vector<u_char> &initData);
 };
+
+#endif

@@ -1,11 +1,9 @@
-#ifndef BASEENCRYPTOR_H
-#define BASEENCRYPTOR_H
+#ifndef BASE_ENCRYPTOR
+#define BASE_ENCRYPTOR
 
 #include <vector>
-#include <iostream>
+#include <string>
 #include <memory>
-
-#endif
 
 enum class EncType {OTP, AES256, DES, RC4, DDES};
 enum class EncAction {DECRYPT = 0, ENCRYPT = 1};
@@ -46,3 +44,5 @@ public:
     virtual bool encrypt() = 0;
     virtual bool decrypt() = 0;
 };
+
+#endif

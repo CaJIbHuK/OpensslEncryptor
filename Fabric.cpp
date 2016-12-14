@@ -1,16 +1,15 @@
 #include "Fabric.h"
-#include "DerivedEncryptor.h"
+#include "ContentProviders.h"
+#include "AESEncryptor.h"
+#include "DESEncryptor.h"
+#include "OTPEncryptor.h"
+#include "RC4Encryptor.h"
 
-
-//---------------------------FABRIC-------------------------
-//TODO params - ContentProviderParams*
-std::shared_ptr<ContentProvider> EncryptorFabric::getContentProvider(ContentProviderType type, ContentDirection direction = ContentDirection::InOut, std::string params = "") {
-    switch (type){
-        case ContentProviderType::File:
-            return std::make_shared<FileProvider>(params, direction);
-        case ContentProviderType::Memory:
-            return std::make_shared<MemoryProvider>();
-    }
+std::shared_ptr<ContentProvider> EncryptorFabric::getFileContentProvider(ContentDirection direction = ContentDirection::InOut, std::string params = "") {
+    return std::make_shared<FileProvider>(params, direction);
+}
+std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider(std::vector<u_char> &initData) {
+    return std::make_shared<MemoryProvider>(initData);
 }
 
 std::shared_ptr<Encryptor> EncryptorFabric::getEncryptor(EncType type,
@@ -30,32 +29,4 @@ std::shared_ptr<Encryptor> EncryptorFabric::getEncryptor(EncType type,
         case EncType::DDES:
             return std::make_shared<DDESEncryptor>(cpIn, cpOut, cpKey, generateKey);
     }
-}
-
-std::shared_ptr<Encryptor> EncryptorFabric::getFileEncryptor(EncType type,
-                                                             std::string pathIn,
-                                                             std::string pathOut,
-                                                             std::string pathKey,
-                                                             bool generateKey) {
-
-    std::shared_ptr<ContentProvider> cpIn = EncryptorFabric::getContentProvider(ContentProviderType::File, ContentDirection::In, pathIn);
-    std::shared_ptr<ContentProvider> cpOut = EncryptorFabric::getContentProvider(ContentProviderType::File , ContentDirection::Out, pathOut);
-    std::shared_ptr<ContentProvider> cpKey = EncryptorFabric::getContentProvider(ContentProviderType::File, generateKey ? ContentDirection::InOut : ContentDirection::In, pathKey);
-
-    return EncryptorFabric::getEncryptor(type,cpIn, cpOut, cpKey, generateKey);
-}
-
-std::shared_ptr<Encryptor> EncryptorFabric::getMemoryEncryptor(EncType type,
-                                                               std::vector<u_char> &dataIn,
-                                                               std::vector<u_char> &key,
-                                                               bool generateKey) {
-
-    std::shared_ptr<ContentProvider> cpIn = EncryptorFabric::getContentProvider(ContentProviderType::Memory);
-    std::shared_ptr<ContentProvider> cpOut = EncryptorFabric::getContentProvider(ContentProviderType::Memory);
-    std::shared_ptr<ContentProvider> cpKey = EncryptorFabric::getContentProvider(ContentProviderType::Memory);
-
-    cpIn->write(dataIn);
-    if (!generateKey) cpKey->write(key);
-
-    return EncryptorFabric::getEncryptor(type,cpIn, cpOut, cpKey, generateKey);
 }
