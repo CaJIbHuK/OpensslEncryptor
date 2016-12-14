@@ -77,7 +77,7 @@ bool FileProvider::write(std::vector<u_char> &buffer) {
 }
 
 //------------------------MEMORY PROVIDER-------------------------
-MemoryProvider::MemoryProvider(std::vector<u_char> &initData) {
+MemoryProvider::MemoryProvider(const std::vector<u_char> &initData) {
     this->memory.assign(initData.begin(), initData.end());
     this->type = ContentProviderType::Memory;
 }

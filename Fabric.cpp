@@ -8,7 +8,7 @@
 std::shared_ptr<ContentProvider> EncryptorFabric::getFileContentProvider(ContentDirection direction = ContentDirection::InOut, std::string params = "") {
     return std::make_shared<FileProvider>(params, direction);
 }
-std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider(std::vector<u_char> &initData) {
+std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider(const std::vector<u_char> &initData) {
     return std::make_shared<MemoryProvider>(initData);
 }
 std::shared_ptr<ContentProvider> EncryptorFabric::getMemoryContentProvider() {

@@ -22,7 +22,7 @@ private:
     long currIndex = 0;
     bool end = false;
 public:
-    MemoryProvider(std::vector<u_char> &initData);
+    MemoryProvider(const std::vector<u_char> &initData);
     MemoryProvider();
     virtual void init() override;
     virtual bool isEOData() const override ;

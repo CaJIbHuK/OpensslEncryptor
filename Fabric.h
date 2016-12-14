@@ -12,7 +12,7 @@ public:
                                                    bool generateKey = false);
 
     static std::shared_ptr<ContentProvider> getFileContentProvider(ContentDirection direction, std::string params);
-    static std::shared_ptr<ContentProvider> getMemoryContentProvider(std::vector<u_char> &initData);
+    static std::shared_ptr<ContentProvider> getMemoryContentProvider(const std::vector<u_char> &initData);
     static std::shared_ptr<ContentProvider> getMemoryContentProvider();
 };
 
